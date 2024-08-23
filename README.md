@@ -47,8 +47,8 @@ This Discord bot is designed to join voice channels, transcribe conversations us
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/discord-transcription-bot.git
-   cd discord-transcription-bot
+   git clone https://github.com/Delta-Zero-Games/steno-bot.git
+   cd steno-bot
    ```
 
 2. Install dependencies:
