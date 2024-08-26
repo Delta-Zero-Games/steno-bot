@@ -38,17 +38,17 @@ const SAMPLE_RATE = 48000;
 /**
  * SILENCE_DURATION: The duration of silence (in ms) before considering a speech segment complete
  */
-const SILENCE_DURATION = 1000;
+const SILENCE_DURATION = 400;
 
 /**
  * MAX_AUDIO_DURATION: The maximum duration (in seconds) for a single audio segment
  */
-const MAX_AUDIO_DURATION = 30;
+const MAX_AUDIO_DURATION = 7200;
 
 /**
  * BUFFER_DURATION: The duration (in ms) for which transcriptions are buffered before processing
  */
-const BUFFER_DURATION = 5000;
+const BUFFER_DURATION = 20000;
 
 // Load the username mapping
 const USERNAME_MAPPING = JSON.parse(fs.readFileSync('username_mapping.json', 'utf8'));
@@ -308,8 +308,8 @@ function speak_impl(voice_Connection, mapKey) {
             const duration = buffer.length / SAMPLE_RATE / 4;
             logger.debug("Audio duration:", duration);
 
-            if (duration < 0.5 || duration > MAX_AUDIO_DURATION) {
-                if (duration <= 0.5) {
+            if (duration < 0.2 || duration > MAX_AUDIO_DURATION) {
+                if (duration <= 0.2) {
                     logger.debug("Duration too short; skipping.");
                     return;
                 } else {
@@ -415,9 +415,44 @@ async function sendTranscription(mapKey, userId, transcription) {
     let val = guildMap.get(mapKey);
     const user = await discordClient.users.fetch(userId);
     const mappedName = USERNAME_MAPPING[user.username.toLowerCase()] || user.username;
-    const message = `${mappedName}: ${transcription}`;
-    val.transcriptions.push(message);
-    await val.text_Channel.send(message);
+    
+    // Split the transcription into chunks of 1800 characters or less
+    const chunks = splitMessage(`${mappedName}: ${transcription}`);
+    
+    for (const chunk of chunks) {
+        val.transcriptions.push(chunk);
+        await val.text_Channel.send(chunk);
+    }
+}
+
+/**
+ * Splits a message into chunks of 1800 characters or less
+ * @param {string} message - The message to split
+ * @returns {string[]} An array of message chunks
+ */
+function splitMessage(message) {
+    const chunks = [];
+    const maxLength = 1800; // Leave some room for Discord's overhead
+
+    while (message.length > 0) {
+        if (message.length <= maxLength) {
+            chunks.push(message);
+            break;
+        }
+
+        let chunk = message.substr(0, maxLength);
+        let splitIndex = chunk.lastIndexOf(' ');
+
+        if (splitIndex === -1) {
+            splitIndex = maxLength;
+        }
+
+        chunk = message.substr(0, splitIndex);
+        chunks.push(chunk);
+        message = message.substr(splitIndex + 1);
+    }
+
+    return chunks;
 }
 
 /**
