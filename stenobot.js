@@ -38,7 +38,7 @@ const SAMPLE_RATE = 48000;
 /**
  * SILENCE_DURATION: The duration of silence (in ms) before considering a speech segment complete
  */
-const SILENCE_DURATION = 400;
+const SILENCE_DURATION = 600;
 
 /**
  * MAX_AUDIO_DURATION: The maximum duration (in seconds) for a single audio segment
@@ -48,7 +48,7 @@ const MAX_AUDIO_DURATION = 7200;
 /**
  * BUFFER_DURATION: The duration (in ms) for which transcriptions are buffered before processing
  */
-const BUFFER_DURATION = 20000;
+const BUFFER_DURATION = 10000;
 
 // Load the username mapping
 const USERNAME_MAPPING = JSON.parse(fs.readFileSync('username_mapping.json', 'utf8'));
@@ -376,7 +376,7 @@ async function processBufferedTranscriptions(mapKey) {
         for (let i = 0; i < userBuffer.length; i++) {
             const { transcription, startTime } = userBuffer[i];
             
-            if (i === 0 || startTime - userBuffer[i-1].startTime > BUFFER_DURATION) {
+            if (i === 0 || startTime - userBuffer[i-1].startTime > SILENCE_DURATION) {
                 // Start of a new message
                 if (fullTranscription) {
                     await sendTranscription(mapKey, userId, fullTranscription);
