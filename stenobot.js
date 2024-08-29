@@ -171,8 +171,14 @@ async function connect(msg, mapKey) {
  */
 function speak_impl(voice_Connection, mapKey) {
     const receiver = voice_Connection.receiver;
+    const activeStreams = new Map();
 
     receiver.speaking.on('start', async (userId) => {
+        if (activeStreams.has(userId)) {
+            logger.debug(`Already processing stream for user ${userId}`);
+            return;
+        }
+
         const user = discordClient.users.cache.get(userId);
         const startTime = Date.now();
         const audioStream = receiver.subscribe(userId, {
@@ -182,15 +188,18 @@ function speak_impl(voice_Connection, mapKey) {
             },
         });
 
-        const encoder = new OpusEncoder(SAMPLE_RATE, 2);
+        activeStreams.set(userId, audioStream);
+
+        const encoder = new OpusEncoder(SAMPLE_RATE, 2); // stereo audio
         let buffer = [];
         audioStream.on("data", chunk => {
             buffer.push(encoder.decode(chunk));
         });
         audioStream.once("end", async () => {
+            activeStreams.delete(userId);
             const endTime = Date.now();
             buffer = Buffer.concat(buffer);
-            const duration = buffer.length / SAMPLE_RATE / 4;
+            const duration = buffer.length / SAMPLE_RATE / 4; // 16-bit audio, 2 channels, 2 bytes per channel
             logger.debug("Audio duration:", duration);
 
             if (duration < 0.3) {
@@ -204,7 +213,7 @@ function speak_impl(voice_Connection, mapKey) {
                 for (let batch of audio_batches) {
                     let transcription = await transcribe_gspeech(batch);
                     if (transcription) {
-                        bufferTranscription(guildMap, mapKey, user, transcription, batch.startTime, batch.endTime);
+                        bufferTranscription(guildMap, mapKey, user, transcription);
                     }
                 }
             } catch (e) {

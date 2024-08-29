@@ -45,6 +45,11 @@ async function processBufferedTranscriptions(guildMap, mapKey) {
     let currentUser = null;
 
     for (let transcription of val.transcriptionBuffer) {
+        // Skip transcriptions with empty text
+        if (!transcription.text || transcription.text.trim().length === 0) {
+            continue;
+        }
+
         const mappedName = USERNAME_MAPPING[transcription.username.toLowerCase()] || transcription.username;
         
         if (currentUser !== transcription.userId) {
