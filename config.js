@@ -21,15 +21,15 @@ module.exports = {
     SAMPLE_RATE: 48000, // what Discord uses with opus codec
 
     // Duration of silence (in ms) before considering a speech segment complete
-    SILENCE_DURATION: 800,
+    SILENCE_DURATION: 1000,
 
     // Maximum duration (in seconds) for a single audio segment
     // Google speech-to-text API has a limit of 1 minute
-    MAX_AUDIO_DURATION: 59,
+    MAX_AUDIO_DURATION: 29,
 
     // Transcription buffer size (in seconds)
     // This determines how often we process and send transcriptions
-    TRANSCRIPTION_BUFFER_LENGTH: 60, // 1 minute
+    TRANSCRIPTION_BUFFER_LENGTH: 30, // 1 minute
 
     // Maximum number of characters in a single Discord message (can't exceed 2000)
     DISCORD_CHAR_LIMIT: 1900,
