@@ -1,4 +1,3 @@
-const { OpusEncoder } = require('@discordjs/opus');
 const { createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const { SAMPLE_RATE, MAX_AUDIO_DURATION } = require('./config');
 const logger = require('./logger');
@@ -16,7 +15,6 @@ async function convert_audio(input, startTime, endTime) {
 
         // Split the audio into batches if it exceeds the maximum duration
         const batches = [];
-        const totalDuration = (endTime - startTime) / 1000; // Convert to seconds
         const batchDuration = MAX_AUDIO_DURATION;
 
         for (let i = 0; i < ndata.length; i += MAX_SAMPLES) {

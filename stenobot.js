@@ -9,15 +9,13 @@ const {
     PREFIX, 
     COMMANDS, 
     SAMPLE_RATE, 
-    SILENCE_DURATION, 
-    MAX_AUDIO_DURATION,
-    TRANSCRIPTION_BUFFER_LENGTH,
-    USERNAME_MAPPING
+    SILENCE_DURATION
 } = require('./config');
 const logger = require('./logger');
 const { 
+    createTranscriptionFile, 
     bufferTranscription, 
-    processBufferedTranscriptions
+    sendTranscriptionFile
 } = require('./transcriptionUtils');
 const { convert_audio, playAudio } = require('./audioUtils');
 const { transcribe_gspeech } = require('./googleSpeech');
@@ -80,6 +78,7 @@ discordClient.on('messageCreate', async (msg) => {
                         await playAudio(val.voice_Connection, 'leave_sound.mp3');
                         await val.voice_Connection.destroy();
                     }
+                    await sendTranscriptionFile(val.text_Channel);
                     guildMap.delete(mapKey);
                     await msg.reply("Disconnected.");
                 } else {
@@ -89,9 +88,7 @@ discordClient.on('messageCreate', async (msg) => {
             case COMMANDS.HELP:
                 await msg.reply(getHelpString());
                 break;
-            case COMMANDS.SAVE:
-                await saveTranscriptions(msg, mapKey);
-                break;
+            // Remove the SAVE case as it's no longer needed
         }
     } catch (e) {
         logger.error('Error in messageCreate event handler:', e);
@@ -111,7 +108,6 @@ function getHelpString() {
            "**COMMANDS:** (or as I like to call them, 'Elinda's Magic Words')\n```" +
            PREFIX + "start - Unleash the Elinda! I'll start eavesdropping... I mean, transcribing.\n" +
            PREFIX + "end - Send me back to my digital hammock. I need my beauty sleep, you know.\n" +
-           PREFIX + "save - Preserve my masterpiece as a text file, but use it before end.\n" +
            PREFIX + "help - You're looking at it, smartypants! Did you think this message appeared by magic?\n```" +
            "Remember, I'm just a bot. If I mess up, blame Bryan. Or sunspots. Yeah, that's more likely, let's go with sunspots.";
 }
@@ -136,14 +132,18 @@ async function connect(msg, mapKey) {
             selfMute: false,
         });
 
+        // Create a new text file for transcriptions
+        const transcriptionFilePath = createTranscriptionFile(mapKey);
+
         guildMap.set(mapKey, {
             text_Channel,
             voice_Channel,
             voice_Connection,
             selected_lang: 'en',
             debug: false,
-            transcriptions: [],
-            processingQueue: false,
+            transcriptionFile: transcriptionFilePath,
+            transcriptionBuffer: [],
+            processingTimeout: null,
             discordClient
         });
 
@@ -152,6 +152,7 @@ async function connect(msg, mapKey) {
         speak_impl(voice_Connection, mapKey);
         voice_Connection.on('disconnect', async (e) => {
             if (e) logger.error('Disconnect error:', e);
+            await sendTranscriptionFile(text_Channel, transcriptionFilePath);
             guildMap.delete(mapKey);
         });
 
@@ -221,42 +222,6 @@ function speak_impl(voice_Connection, mapKey) {
             }
         });
     });
-}
-
-/**
- * Saves the transcriptions to a file and sends it to the Discord channel
- * @param {Object} msg - The Discord message object
- * @param {string} mapKey - The unique identifier for the guild
- */
-async function saveTranscriptions(msg, mapKey) {
-    try {
-        if (!guildMap.has(mapKey)) {
-            return msg.reply("No transcriptions available. Start voice recognition first.");
-        }
-
-        let val = guildMap.get(mapKey);
-        if (val.transcriptions.length === 0) {
-            return msg.reply("No transcriptions available to save.");
-        }
-
-        const filename = `transcription_${Date.now()}.txt`;
-        const content = val.transcriptions.join('\n');
-
-        fs.writeFileSync(filename, content);
-
-        const attachment = new AttachmentBuilder(filename, { name: filename });
-        await msg.reply({ content: "Here are your transcriptions:", files: [attachment] });
-
-        // Clear transcriptions after saving
-        val.transcriptions = [];
-
-        // Delete the file after sending
-        fs.unlinkSync(filename);
-
-    } catch (e) {
-        logger.error('Error saving transcriptions:', e);
-        await msg.reply('Error: Unable to save transcriptions.');
-    }
 }
 
 module.exports = {

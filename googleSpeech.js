@@ -40,9 +40,7 @@ async function transcribe_gspeech(audioData) {
             sampleRateHertz: SAMPLE_RATE,
             languageCode: 'en-US',
             audioChannelCount: 1,
-            // You can add additional configuration options here, such as:
             enableAutomaticPunctuation: true,
-            // model: 'video',
             useEnhanced: true,
         };
         const request = {

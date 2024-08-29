@@ -1,5 +1,26 @@
+const fs = require('fs');
+const path = require('path');
+const { AttachmentBuilder } = require('discord.js');
 const { TRANSCRIPTION_BUFFER_LENGTH, USERNAME_MAPPING, DISCORD_CHAR_LIMIT } = require('./config');
 const logger = require('./logger');
+
+let transcriptionFilePath = null;
+
+function createTranscriptionFile(guildId) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `transcription_${guildId}_${timestamp}.txt`;
+    transcriptionFilePath = path.join('./data', filename);
+    fs.writeFileSync(transcriptionFilePath, '');
+    return transcriptionFilePath;
+}
+
+function appendToTranscriptionFile(message) {
+    if (transcriptionFilePath) {
+        fs.appendFileSync(transcriptionFilePath, message + '\n');
+    } else {
+        logger.error('Transcription file path not set');
+    }
+}
 
 /**
  * Buffers transcriptions for processing
@@ -37,7 +58,6 @@ async function processBufferedTranscriptions(guildMap, mapKey) {
 
     if (val.transcriptionBuffer.length === 0) return;
 
-    // Sort transcriptions by start time
     val.transcriptionBuffer.sort((a, b) => a.startTime - b.startTime);
 
     let messages = [];
@@ -45,7 +65,6 @@ async function processBufferedTranscriptions(guildMap, mapKey) {
     let currentUser = null;
 
     for (let transcription of val.transcriptionBuffer) {
-        // Skip transcriptions with empty text
         if (!transcription.text || transcription.text.trim().length === 0) {
             continue;
         }
@@ -55,6 +74,7 @@ async function processBufferedTranscriptions(guildMap, mapKey) {
         if (currentUser !== transcription.userId) {
             if (currentMessage) {
                 messages.push(currentMessage);
+                appendToTranscriptionFile(currentMessage);
                 currentMessage = '';
             }
             currentUser = transcription.userId;
@@ -63,26 +83,24 @@ async function processBufferedTranscriptions(guildMap, mapKey) {
             currentMessage += ` ${transcription.text}`;
         }
 
-        // Check if current message exceeds Discord character limit
         if (currentMessage.length > DISCORD_CHAR_LIMIT) {
             messages.push(currentMessage.slice(0, DISCORD_CHAR_LIMIT));
+            appendToTranscriptionFile(currentMessage.slice(0, DISCORD_CHAR_LIMIT));
             currentMessage = `${mappedName}: ${currentMessage.slice(DISCORD_CHAR_LIMIT)}`;
         }
     }
 
     if (currentMessage) {
         messages.push(currentMessage);
+        appendToTranscriptionFile(currentMessage);
     }
 
-    // Send messages to Discord channel
     for (let message of messages) {
         await sendTranscription(val.text_Channel, message);
     }
 
-    // Clear the buffer after processing
     val.transcriptionBuffer = [];
 
-    // Schedule next processing if there are new transcriptions
     if (val.transcriptionBuffer.length > 0) {
         val.processingTimeout = setTimeout(() => processBufferedTranscriptions(guildMap, mapKey), TRANSCRIPTION_BUFFER_LENGTH * 1000);
     }
@@ -98,6 +116,19 @@ async function sendTranscription(textChannel, message) {
         await textChannel.send(message);
     } catch (error) {
         logger.error('Error sending transcription to Discord:', error);
+    }
+}
+
+async function sendTranscriptionFile(textChannel) {
+    try {
+        if (transcriptionFilePath && fs.existsSync(transcriptionFilePath)) {
+            const attachment = new AttachmentBuilder(transcriptionFilePath);
+            await textChannel.send({ content: "Here's the transcription file:", files: [attachment] });
+        } else {
+            await textChannel.send("No transcription file available.");
+        }
+    } catch (error) {
+        logger.error('Error sending transcription file:', error);
     }
 }
 
@@ -128,8 +159,10 @@ function splitMessage(message, maxLength) {
 }
 
 module.exports = {
+    createTranscriptionFile,
     bufferTranscription,
     processBufferedTranscriptions,
     splitMessage,
-    sendTranscription
+    sendTranscription,
+    sendTranscriptionFile
 };
