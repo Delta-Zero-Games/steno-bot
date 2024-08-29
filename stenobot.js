@@ -11,6 +11,7 @@ const {
     SAMPLE_RATE, 
     SILENCE_DURATION, 
     MAX_AUDIO_DURATION,
+    TRANSCRIPTION_BUFFER_LENGTH,
     USERNAME_MAPPING
 } = require('./config');
 const logger = require('./logger');
@@ -143,7 +144,7 @@ async function connect(msg, mapKey) {
             debug: false,
             transcriptions: [],
             processingQueue: false,
-            discordClient // Add this to make discordClient available in transcriptionUtils
+            discordClient
         });
 
         await playAudio(voice_Connection, 'join_sound.mp3');
@@ -187,42 +188,30 @@ function speak_impl(voice_Connection, mapKey) {
             buffer.push(encoder.decode(chunk));
         });
         audioStream.once("end", async () => {
+            const endTime = Date.now();
             buffer = Buffer.concat(buffer);
             const duration = buffer.length / SAMPLE_RATE / 4;
             logger.debug("Audio duration:", duration);
 
-            if (duration < 0.2) {
+            if (duration < 0.3) {
                 logger.debug("Duration too short; skipping.");
                 return;
             }
 
             try {
-                let audio_batches = await convert_audio(buffer);
-                let fullTranscription = '';
-
+                let audio_batches = await convert_audio(buffer, startTime, endTime);
+                logger.debug(`Number of audio batches: ${audio_batches.length}`);
                 for (let batch of audio_batches) {
                     let transcription = await transcribe_gspeech(batch);
                     if (transcription) {
-                        fullTranscription += (fullTranscription ? ' ' : '') + transcription;
+                        bufferTranscription(guildMap, mapKey, user, transcription, batch.startTime, batch.endTime);
                     }
-                }
-
-                if (fullTranscription) {
-                    bufferTranscription(guildMap, mapKey, user, fullTranscription, startTime);
                 }
             } catch (e) {
                 logger.error('Error during transcription:', e);
             }
         });
     });
-}
-
-function splitAudioBuffer(buffer, maxChunkSize) {
-    const chunks = [];
-    for (let i = 0; i < buffer.length; i += maxChunkSize) {
-        chunks.push(buffer.slice(i, i + maxChunkSize));
-    }
-    return chunks;
 }
 
 /**

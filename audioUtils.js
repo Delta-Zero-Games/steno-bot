@@ -8,18 +8,28 @@ const logger = require('./logger');
  * @param {Buffer} input - The input audio buffer
  * @returns {Buffer[]} An array of converted audio buffers
  */
-async function convert_audio(input) {
+async function convert_audio(input, startTime, endTime) {
     try {
         const data = new Int16Array(input);
         const ndata = data.filter((el, idx) => idx % 2);
         const MAX_SAMPLES = MAX_AUDIO_DURATION * SAMPLE_RATE;
-        
+
         // Split the audio into batches if it exceeds the maximum duration
         const batches = [];
+        const totalDuration = (endTime - startTime) / 1000; // Convert to seconds
+        const batchDuration = MAX_AUDIO_DURATION;
+
         for (let i = 0; i < ndata.length; i += MAX_SAMPLES) {
-            batches.push(Buffer.from(ndata.slice(i, i + MAX_SAMPLES)));
+            const batchStartTime = startTime + (i / SAMPLE_RATE) * 1000;
+            const batchEndTime = Math.min(batchStartTime + batchDuration * 1000, endTime);
+
+            batches.push({
+                audio: Buffer.from(ndata.slice(i, i + MAX_SAMPLES)),
+                startTime: batchStartTime,
+                endTime: batchEndTime
+            });
         }
-        
+
         return batches;
     } catch (e) {
         logger.error('Error in convert_audio:', e);

@@ -18,22 +18,21 @@ module.exports = {
     },
 
     // Audio sample rate for voice recognition (in Hz)
-    SAMPLE_RATE: 48000,
+    SAMPLE_RATE: 48000, // what Discord uses with opus codec
 
     // Duration of silence (in ms) before considering a speech segment complete
-    SILENCE_DURATION: 600,
+    SILENCE_DURATION: 800,
 
     // Maximum duration (in seconds) for a single audio segment
-    MAX_AUDIO_DURATION: 59, // google speech-to-text API has a limit of 1 minute
-
-    // Duration (in ms) for which transcriptions are buffered before processing
-    BUFFER_DURATION: 59000, // 59 seconds like above... is it redundant?
+    // Google speech-to-text API has a limit of 1 minute
+    MAX_AUDIO_DURATION: 59,
 
     // Transcription buffer size (in seconds)
-    TRANSCRIPTION_BUFFER_LENGTH: 120, // 2 minutes
+    // This determines how often we process and send transcriptions
+    TRANSCRIPTION_BUFFER_LENGTH: 60, // 1 minute
 
     // Maximum number of characters in a single Discord message (can't exceed 2000)
-    DISCORD_CHAR_LIMIT: 1900, // using 1900 to be safe since we add the mapped username
+    DISCORD_CHAR_LIMIT: 1900,
 
     // Discord bot token (from environment variable)
     DISCORD_TOK: process.env.DISCORD_TOK,

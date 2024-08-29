@@ -13,15 +13,23 @@ const speechClient = new speech.SpeechClient({
 
 /**
  * Transcribes audio using Google Speech-to-Text API
- * @param {Buffer} buffer - The audio buffer to transcribe
- * @returns {string|null} The transcribed text, or null if transcription failed
+ * @param {Object} audioData - Object containing audio buffer and timing information
+ * @param {Buffer} audioData.audio - The audio buffer to transcribe
+ * @param {number} audioData.startTime - The start time of the audio segment
+ * @param {number} audioData.endTime - The end time of the audio segment
+ * @returns {Object|null} Object containing transcribed text and timing info, or null if transcription failed
  */
-async function transcribe_gspeech(buffer) {
+async function transcribe_gspeech(audioData) {
     try {
         logger.debug('Transcribing with Google Speech-to-Text');
 
+        if (audioData.audio.length === 0) {
+            logger.warn('Empty audio data received');
+            return null;
+        }
+
         // Convert the audio buffer to a base64 encoded string
-        const audioBytes = buffer.toString('base64');
+        const audioBytes = audioData.audio.toString('base64');
 
         // Configure the request
         const audio = {
@@ -31,10 +39,11 @@ async function transcribe_gspeech(buffer) {
             encoding: 'LINEAR16',
             sampleRateHertz: SAMPLE_RATE,
             languageCode: 'en-US',
+            audioChannelCount: 1,
             // You can add additional configuration options here, such as:
-            // enableAutomaticPunctuation: true,
+            enableAutomaticPunctuation: true,
             // model: 'video',
-            // useEnhanced: true,
+            useEnhanced: true,
         };
         const request = {
             audio: audio,
@@ -50,7 +59,13 @@ async function transcribe_gspeech(buffer) {
             .join('\n');
 
         logger.debug(`Transcription result: ${transcription}`);
-        return transcription;
+
+        // Return an object with the transcription and timing information
+        return {
+            text: transcription,
+            startTime: audioData.startTime,
+            endTime: audioData.endTime
+        };
     } catch (error) {
         logger.error('Error during Google Speech API transcription:', error);
         return null;
