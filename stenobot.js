@@ -105,9 +105,10 @@ function getHelpString() {
            "I'm here to turn your voice chatter into text splatter!\n" +
            "Just hop into a voice channel and type '!start'\n" +
            "I'll then do my thing in the channel the command was used in.\n\n" +
-           "**COMMANDS:** (or as I like to call them, 'Elinda's Magic Words')\n```" +
-           PREFIX + "start - Unleash the Elinda! I'll start eavesdropping... I mean, transcribing.\n" +
-           PREFIX + "end - Send me back to my digital hammock. I need my beauty sleep, you know.\n" +
+           "**__COMMANDS__**\n" +
+           "*or as I like to call them, 'Elinda's Magic Words':*\n```" +
+           PREFIX + "start - Unleash the Elinda! I'll start eavesdropping... I mean, transcribing.\n\n" +
+           PREFIX + "stop - Send me back to my digital hammock. I need my beauty sleep, you know.\n\n" +
            PREFIX + "help - You're looking at it, smartypants! Did you think this message appeared by magic?\n```" +
            "Remember, I'm just a bot. If I mess up, blame Bryan. Or sunspots. Yeah, that's more likely, let's go with sunspots.";
 }

@@ -12,7 +12,7 @@ module.exports = {
     // Available bot commands
     COMMANDS: {
         JOIN: '!start',
-        LEAVE: '!end',
+        LEAVE: '!stop',
         HELP: '!help'
     },
 
