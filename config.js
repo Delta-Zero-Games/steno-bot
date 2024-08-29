@@ -27,10 +27,13 @@ module.exports = {
     MAX_AUDIO_DURATION: 59, // google speech-to-text API has a limit of 1 minute
 
     // Duration (in ms) for which transcriptions are buffered before processing
-    BUFFER_DURATION: 10000, // 10 seconds
+    BUFFER_DURATION: 59000, // 59 seconds like above... is it redundant?
+
+    // Transcription buffer size (in seconds)
+    TRANSCRIPTION_BUFFER_LENGTH: 120, // 2 minutes
 
     // Maximum number of characters in a single Discord message (can't exceed 2000)
-    DISCORD_CHAR_LIMIT: 1900,
+    DISCORD_CHAR_LIMIT: 1900, // using 1900 to be safe since we add the mapped username
 
     // Discord bot token (from environment variable)
     DISCORD_TOK: process.env.DISCORD_TOK,
