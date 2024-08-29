@@ -3,6 +3,7 @@ const { Client, IntentsBitField, AttachmentBuilder } = require('discord.js');
 const { joinVoiceChannel, EndBehaviorType } = require('@discordjs/voice');
 const { OpusEncoder } = require('@discordjs/opus');
 
+// Import configuration and utility modules
 const { 
     DISCORD_TOK, 
     LOG_LEVEL, 
@@ -20,7 +21,7 @@ const {
 const { convert_audio, playAudio } = require('./audioUtils');
 const { transcribe_gspeech } = require('./googleSpeech');
 
-// Set up Discord client
+// Set up Discord client with necessary intents
 const myIntents = new IntentsBitField();
 myIntents.add(
     IntentsBitField.Flags.GuildPresences,
@@ -34,10 +35,12 @@ myIntents.add(
 const discordClient = new Client({ intents: myIntents });
 if (LOG_LEVEL === 'debug') discordClient.on('debug', logger.debug);
 
+// Log when the bot is ready
 discordClient.on('ready', () => {
     logger.info(`Logged in as ${discordClient.user.tag}!`);
 });
 
+// Log in to Discord with the bot token
 discordClient.login(DISCORD_TOK);
 
 // Map to store guild-specific data
@@ -88,7 +91,6 @@ discordClient.on('messageCreate', async (msg) => {
             case COMMANDS.HELP:
                 await msg.reply(getHelpString());
                 break;
-            // Remove the SAVE case as it's no longer needed
         }
     } catch (e) {
         logger.error('Error in messageCreate event handler:', e);
@@ -120,11 +122,13 @@ function getHelpString() {
  */
 async function connect(msg, mapKey) {
     try {
+        // Fetch voice and text channels
         let voice_Channel = await discordClient.channels.fetch(msg.member.voice.channel.id);
         if (!voice_Channel) return msg.reply("Error: The voice channel does not exist!");
         let text_Channel = await discordClient.channels.fetch(msg.channel.id);
         if (!text_Channel) return msg.reply("Error: The text channel does not exist!");
 
+        // Join the voice channel
         const voice_Connection = joinVoiceChannel({
             channelId: voice_Channel.id,
             guildId: voice_Channel.guild.id,
@@ -132,10 +136,10 @@ async function connect(msg, mapKey) {
             selfDeaf: false,
             selfMute: false,
         });
-
         // Create a new text file for transcriptions
         const transcriptionFilePath = createTranscriptionFile(mapKey);
 
+        // Set up guild-specific data
         guildMap.set(mapKey, {
             text_Channel,
             voice_Channel,
@@ -148,15 +152,20 @@ async function connect(msg, mapKey) {
             discordClient
         });
 
+        // Play join sound
         await playAudio(voice_Connection, 'join_sound.mp3');
 
+        // Set up speech recognition
         speak_impl(voice_Connection, mapKey);
+        
+        // Handle disconnection
         voice_Connection.on('disconnect', async (e) => {
             if (e) logger.error('Disconnect error:', e);
             await sendTranscriptionFile(text_Channel, transcriptionFilePath);
             guildMap.delete(mapKey);
         });
 
+        // Send welcome messages
         await text_Channel.send('Oh great. I found them. I found my crackers! Ready when you are.');
         await text_Channel.send({ files: ['./data/miss_elinda_nade.gif'] });
     } catch (e) {

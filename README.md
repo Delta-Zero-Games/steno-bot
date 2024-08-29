@@ -11,6 +11,7 @@
 4. [Usage](#usage)
    - [Running the Bot](#running-the-bot)
    - [Log Levels](#log-levels)
+   - [Bot Commands](#bot-commands)
 5. [Customization](#customization)
    - [Audio Sounds](#audio-sounds)
    - [Username Mapping](#username-mapping)
@@ -33,6 +34,7 @@ This Discord bot is designed to join voice channels, transcribe conversations us
 - Configurable logging levels
 - Transcription saving to text files
 - Buffer system for improved transcription accuracy
+- Support for multiple guilds simultaneously
 
 ## Setup
 
@@ -73,71 +75,49 @@ LOG_LEVEL=info
 
 ### Running the Bot
 
-To run the bot with the default log level (as specified in your .env file):
+To run the bot:
 
 ```
 node stenobot.js
 ```
 
-To run the bot with a specific log level, you can set it as an environment variable when starting the bot:
+### Log Levels
+
+The bot supports four log levels, providing different amounts of information:
+
+- `error`: Only logs error messages.
+- `warn`: Logs warnings and errors.
+- `info`: Logs general information, warnings, and errors (default).
+- `debug`: Logs everything, including detailed debug information.
+
+Set the log level in the `.env` file or as an environment variable when starting the bot:
 
 ```
 LOG_LEVEL=debug node stenobot.js
 ```
 
-This command will run the bot with the 'debug' log level, overriding the level set in the .env file.
-
-### Log Levels
-
-The bot supports four log levels, providing different amounts of information in the terminal:
-
-1. `error`: Only logs error messages. Use this in production for minimal output.
-   ```
-   LOG_LEVEL=error node stenobot.js
-   ```
-
-2. `warn`: Logs warnings and errors. Good for general use in production.
-   ```
-   LOG_LEVEL=warn node stenobot.js
-   ```
-
-3. `info`: Logs general information, warnings, and errors. This is the default and is good for most situations.
-   ```
-   LOG_LEVEL=info node stenobot.js
-   ```
-
-4. `debug`: Logs everything, including detailed debug information. Use this for troubleshooting or development.
-   ```
-   LOG_LEVEL=debug node stenobot.js
-   ```
-
-Each log level includes all the levels above it. For example, 'warn' will show both warnings and errors.
-
 ### Bot Commands
 
 - `!start`: Start the bot and join the user's current voice channel
-- `!end`: Stop the bot and leave the voice channel
-- `!save`: Save the current transcription to a text file
+- `!stop`: Stop the bot and leave the voice channel
 - `!help`: Display help information
 
 ## Customization
 
 ### Audio Sounds
 
-To update the start and end audio sounds:
+To update the join and leave audio sounds:
 
 1. Prepare two audio files in MP3 format.
 2. Name them `join_sound.mp3` and `leave_sound.mp3`.
 3. Place these files in the `sounds` directory in the project root.
 
-The bot will automatically use these files when joining or leaving a voice channel.
-
 ### Username Mapping
 
 To update the username mapping:
 
-1. Open the `username_mapping.json` file in the project root.
-2. Edit the JSON object to map Discord usernames to desired display names:
+1. Edit the `username_mapping.json` file in the project root.
+2. Map Discord usernames to desired display names:
 
 ```json
 {
@@ -145,8 +125,6 @@ To update the username mapping:
   "discord_username2": "Display Name 2"
 }
 ```
-
-3. Save the file. The bot will use this mapping for all future transcriptions.
 
 ## Google Speech-to-Text Setup
 
@@ -160,33 +138,33 @@ For detailed instructions, visit the [Google Cloud Speech-to-Text documentation]
 
 ## Constants and Environment Variables
 
-- `LOG_LEVEL`: Sets the verbosity of logging. Options are 'error', 'warn', 'info', 'debug'.
+- `LOG_LEVEL`: Sets the verbosity of logging.
 - `PREFIX`: The command prefix for the bot (default: '!').
-- `SAMPLE_RATE`: Audio sample rate for voice recognition (default: 48000 Hz).
-- `SILENCE_DURATION`: Duration of silence before considering a speech segment complete (default: 1000 ms).
-- `MAX_AUDIO_DURATION`: Maximum duration for a single audio segment (default: 30 seconds).
-- `BUFFER_DURATION`: Duration for which transcriptions are buffered before processing (default: 5000 ms).
+- `SAMPLE_RATE`: Audio sample rate for voice recognition (48000 Hz).
+- `SILENCE_DURATION`: Duration of silence before considering a speech segment complete (1000 ms).
+- `MAX_AUDIO_DURATION`: Maximum duration for a single audio segment (29 seconds).
+- `TRANSCRIPTION_BUFFER_LENGTH`: Duration for which transcriptions are buffered before processing (30 seconds).
+- `DISCORD_CHAR_LIMIT`: Maximum number of characters in a single Discord message (1900).
 
-These can be adjusted in the code if needed, but the default values should work for most use cases.
+These can be adjusted in the `config.js` file if needed.
 
 ## Future Additions
 
-- AI-powered meeting summarization: Implement an AI model to generate concise, detailed meeting notes from the transcripts. This could include:
-  - Key points extraction
-  - Action item identification
-  - Sentiment analysis
-  - Participant contribution summary
-- Multi-language support: Extend the bot to handle multiple languages in the same conversation.
-- Real-time translation: Add capability to translate transcriptions in real-time for multi-lingual meetings.
-- Integration with project management tools: Automatically create tasks or tickets based on action items identified in the transcript.
-- Custom wake word: Allow the bot to start transcribing only after hearing a specific phrase.
+- AI-powered meeting summarization
+- Multi-language support
+- Real-time translation
+- Integration with project management tools
+- Custom wake word
+- Adjust Discord's 48000Hz stereo audio to 16000Hz mono audio to decrease token usage
+- Convert to v2 of Google's speech-to-text API
 
 ## Troubleshooting
 
-- If the bot isn't responding to commands, ensure your Discord bot token is correct in the `.env` file.
-- For issues with transcription, check that your Google Cloud credentials are set up correctly and the Speech-to-Text API is enabled.
-- If audio playback isn't working, verify that the sound files are in the correct format and location.
-- For any persistent issues, check the console logs and adjust the `LOG_LEVEL` in `.env` to 'debug' for more detailed output.
+- Verify that your Discord bot token and Google Cloud credentials are correct.
+- Check console logs for error messages.
+- Ensure all required dependencies are installed.
+- Verify that audio files are in the correct format and location.
+- Set `LOG_LEVEL` to 'debug' for more detailed output.
 
 For further assistance, please open an issue on the GitHub repository.
 

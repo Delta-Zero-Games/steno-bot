@@ -4,8 +4,14 @@ const { AttachmentBuilder } = require('discord.js');
 const { TRANSCRIPTION_BUFFER_LENGTH, USERNAME_MAPPING, DISCORD_CHAR_LIMIT } = require('./config');
 const logger = require('./logger');
 
+// Global variable to store the current transcription file path
 let transcriptionFilePath = null;
 
+/**
+ * Creates a new transcription file for a given guild
+ * @param {string} guildId - The ID of the Discord guild
+ * @returns {string} The path of the created transcription file
+ */
 function createTranscriptionFile(guildId) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `transcription_${guildId}_${timestamp}.txt`;
@@ -14,6 +20,10 @@ function createTranscriptionFile(guildId) {
     return transcriptionFilePath;
 }
 
+/**
+ * Appends a message to the current transcription file
+ * @param {string} message - The message to append
+ */
 function appendToTranscriptionFile(message) {
     if (transcriptionFilePath) {
         fs.appendFileSync(transcriptionFilePath, message + '\n');
@@ -58,6 +68,7 @@ async function processBufferedTranscriptions(guildMap, mapKey) {
 
     if (val.transcriptionBuffer.length === 0) return;
 
+    // Sort transcriptions by start time
     val.transcriptionBuffer.sort((a, b) => a.startTime - b.startTime);
 
     let messages = [];
@@ -69,6 +80,7 @@ async function processBufferedTranscriptions(guildMap, mapKey) {
             continue;
         }
 
+        // Map username to display name if available
         const mappedName = USERNAME_MAPPING[transcription.username.toLowerCase()] || transcription.username;
         
         if (currentUser !== transcription.userId) {
@@ -83,6 +95,7 @@ async function processBufferedTranscriptions(guildMap, mapKey) {
             currentMessage += ` ${transcription.text}`;
         }
 
+        // Split message if it exceeds Discord's character limit
         if (currentMessage.length > DISCORD_CHAR_LIMIT) {
             messages.push(currentMessage.slice(0, DISCORD_CHAR_LIMIT));
             appendToTranscriptionFile(currentMessage.slice(0, DISCORD_CHAR_LIMIT));
@@ -95,12 +108,14 @@ async function processBufferedTranscriptions(guildMap, mapKey) {
         appendToTranscriptionFile(currentMessage);
     }
 
+    // Send processed messages to Discord
     for (let message of messages) {
         await sendTranscription(val.text_Channel, message);
     }
 
     val.transcriptionBuffer = [];
 
+    // Schedule next processing if there are still transcriptions in the buffer
     if (val.transcriptionBuffer.length > 0) {
         val.processingTimeout = setTimeout(() => processBufferedTranscriptions(guildMap, mapKey), TRANSCRIPTION_BUFFER_LENGTH * 1000);
     }
@@ -119,6 +134,10 @@ async function sendTranscription(textChannel, message) {
     }
 }
 
+/**
+ * Sends the transcription file to the Discord channel
+ * @param {Object} textChannel - The Discord text channel object
+ */
 async function sendTranscriptionFile(textChannel) {
     try {
         if (transcriptionFilePath && fs.existsSync(transcriptionFilePath)) {
