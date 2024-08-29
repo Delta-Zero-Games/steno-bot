@@ -1,129 +1,25 @@
 const fs = require('fs');
-const { OpusEncoder } = require('@discordjs/opus');
 const { Client, IntentsBitField, AttachmentBuilder } = require('discord.js');
-const { joinVoiceChannel, EndBehaviorType, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
-const gspeech = require('@google-cloud/speech');
-require('dotenv').config();
+const { joinVoiceChannel, EndBehaviorType } = require('@discordjs/voice');
+const { OpusEncoder } = require('@discordjs/opus');
 
-// Constants
-/**
- * LOG_LEVEL: Determines the verbosity of logging. Options are:
- * - 'error': Only log errors
- * - 'warn': Log warnings and errors
- * - 'info': Log general information, warnings, and errors
- * - 'debug': Log everything, including debug information
- */
-const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
-
-/**
- * PREFIX: The character used to trigger bot commands
- */
-const PREFIX = '!';
-
-/**
- * COMMANDS: Object containing all available bot commands
- */
-const COMMANDS = {
-    JOIN: PREFIX + 'start',
-    LEAVE: PREFIX + 'end',
-    HELP: PREFIX + 'help',
-    SAVE: PREFIX + 'save'
-};
-
-/**
- * SAMPLE_RATE: The audio sample rate used for voice recognition (in Hz)
- */
-const SAMPLE_RATE = 48000;
-
-/**
- * SILENCE_DURATION: The duration of silence (in ms) before considering a speech segment complete
- */
-const SILENCE_DURATION = 600;
-
-/**
- * MAX_AUDIO_DURATION: The maximum duration (in seconds) for a single audio segment
- */
-const MAX_AUDIO_DURATION = 7200;
-
-/**
- * BUFFER_DURATION: The duration (in ms) for which transcriptions are buffered before processing
- */
-const BUFFER_DURATION = 10000;
-
-// Load the username mapping
-const USERNAME_MAPPING = JSON.parse(fs.readFileSync('username_mapping.json', 'utf8'));
-
-/**
- * Creates a timestamp string for the current date and time
- * @returns {string} Formatted timestamp string
- */
-function getCurrentDateString() {
-    return (new Date()).toISOString() + ' ::';
-}
-
-// Create a simple logger
-const logger = {
-    error: (...args) => console.error(getCurrentDateString(), ...args),
-    warn: (...args) => {
-        if (['warn', 'info', 'debug'].includes(LOG_LEVEL)) console.warn(getCurrentDateString(), ...args);
-    },
-    info: (...args) => {
-        if (['info', 'debug'].includes(LOG_LEVEL)) console.log(getCurrentDateString(), ...args);
-    },
-    debug: (...args) => {
-        if (LOG_LEVEL === 'debug') console.log(getCurrentDateString(), ...args);
-    }
-};
-
-/**
- * Creates necessary directories for the bot's operation
- */
-function necessary_dirs() {
-    if (!fs.existsSync('./data/')){
-        fs.mkdirSync('./data/');
-    }
-}
-necessary_dirs();
-
-/**
- * Utility function to create a delay
- * @param {number} ms - The number of milliseconds to sleep
- * @returns {Promise} A promise that resolves after the specified time
- */
-function sleep(ms) {
-    return new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
-}
-
-/**
- * Converts audio data to the format required by the speech recognition API
- * @param {Buffer} input - The input audio buffer
- * @returns {Buffer} The converted audio buffer
- */
-async function convert_audio(input) {
-    try {
-        const data = new Int16Array(input);
-        const ndata = data.filter((el, idx) => idx % 2);
-        return Buffer.from(ndata);
-    } catch (e) {
-        logger.error('Error in convert_audio:', e);
-        throw e;
-    }
-}
-
-/**
- * Loads configuration from environment variables
- * @returns {string} The Discord token
- */
-function loadConfig() {
-    const DISCORD_TOK = process.env.DISCORD_TOK;
-    if (!DISCORD_TOK) throw new Error('Invalid or missing DISCORD_TOK');
-    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Missing Google Speech-to-Text API key file path');
-    return DISCORD_TOK;
-}
-
-const DISCORD_TOK = loadConfig();
+const { 
+    DISCORD_TOK, 
+    LOG_LEVEL, 
+    PREFIX, 
+    COMMANDS, 
+    SAMPLE_RATE, 
+    SILENCE_DURATION, 
+    MAX_AUDIO_DURATION,
+    USERNAME_MAPPING
+} = require('./config');
+const logger = require('./logger');
+const { 
+    bufferTranscription, 
+    processBufferedTranscriptions
+} = require('./transcriptionUtils');
+const { convert_audio, playAudio } = require('./audioUtils');
+const { transcribe_gspeech } = require('./googleSpeech');
 
 // Set up Discord client
 const myIntents = new IntentsBitField();
@@ -145,7 +41,16 @@ discordClient.on('ready', () => {
 
 discordClient.login(DISCORD_TOK);
 
+// Map to store guild-specific data
 const guildMap = new Map();
+
+// Create necessary directories
+function necessary_dirs() {
+    if (!fs.existsSync('./data/')) {
+        fs.mkdirSync('./data/');
+    }
+}
+necessary_dirs();
 
 /**
  * Handles incoming Discord messages and bot commands
@@ -167,20 +72,19 @@ discordClient.on('messageCreate', async (msg) => {
                     await msg.reply('Already connected.');
                 }
                 break;
-                case COMMANDS.LEAVE:
-                    if (guildMap.has(mapKey)) {
-                        let val = guildMap.get(mapKey);
-                        if (val.voice_Connection) {
-                            // Play the leave sound before disconnecting
-                            await playAudio(val.voice_Connection, 'leave_sound.mp3');
-                            await val.voice_Connection.destroy();
-                        }
-                        guildMap.delete(mapKey);
-                        await msg.reply("Disconnected.");
-                    } else {
-                        await msg.reply("Cannot leave because not connected.");
+            case COMMANDS.LEAVE:
+                if (guildMap.has(mapKey)) {
+                    let val = guildMap.get(mapKey);
+                    if (val.voice_Connection) {
+                        await playAudio(val.voice_Connection, 'leave_sound.mp3');
+                        await val.voice_Connection.destroy();
                     }
-                    break;
+                    guildMap.delete(mapKey);
+                    await msg.reply("Disconnected.");
+                } else {
+                    await msg.reply("Cannot leave because not connected.");
+                }
+                break;
             case COMMANDS.HELP:
                 await msg.reply(getHelpString());
                 break;
@@ -212,26 +116,6 @@ function getHelpString() {
 }
 
 /**
- * Plays an audio file in the voice channel
- * @param {Object} connection - The voice connection object
- * @param {string} filename - The name of the audio file to play
- * @returns {Promise} A promise that resolves when the audio finishes playing
- */
-function playAudio(connection, filename) {
-    return new Promise((resolve) => {
-        const player = createAudioPlayer();
-        const resource = createAudioResource(`./sounds/${filename}`);
-        
-        connection.subscribe(player);
-        player.play(resource);
-
-        player.on(AudioPlayerStatus.Idle, () => {
-            resolve();
-        });
-    });
-}
-
-/**
  * Connects the bot to a voice channel and sets up voice recognition
  * @param {Object} msg - The Discord message object
  * @param {string} mapKey - The unique identifier for the guild
@@ -248,7 +132,7 @@ async function connect(msg, mapKey) {
             guildId: voice_Channel.guild.id,
             adapterCreator: voice_Channel.guild.voiceAdapterCreator,
             selfDeaf: false,
-            selfMute: false,  // Changed to false so the bot can play audio
+            selfMute: false,
         });
 
         guildMap.set(mapKey, {
@@ -258,10 +142,10 @@ async function connect(msg, mapKey) {
             selected_lang: 'en',
             debug: false,
             transcriptions: [],
-            processingQueue: false
+            processingQueue: false,
+            discordClient // Add this to make discordClient available in transcriptionUtils
         });
 
-        // Play the join sound
         await playAudio(voice_Connection, 'join_sound.mp3');
 
         speak_impl(voice_Connection, mapKey);
@@ -286,7 +170,6 @@ async function connect(msg, mapKey) {
  */
 function speak_impl(voice_Connection, mapKey) {
     const receiver = voice_Connection.receiver;
-    let userBuffers = new Map();
 
     receiver.speaking.on('start', async (userId) => {
         const user = discordClient.users.cache.get(userId);
@@ -308,21 +191,24 @@ function speak_impl(voice_Connection, mapKey) {
             const duration = buffer.length / SAMPLE_RATE / 4;
             logger.debug("Audio duration:", duration);
 
-            if (duration < 0.2 || duration > MAX_AUDIO_DURATION) {
-                if (duration <= 0.2) {
-                    logger.debug("Duration too short; skipping.");
-                    return;
-                } else {
-                    logger.info("Duration too long; truncating.");
-                    buffer = buffer.slice(0, MAX_AUDIO_DURATION * SAMPLE_RATE * 4);
-                }
+            if (duration < 0.2) {
+                logger.debug("Duration too short; skipping.");
+                return;
             }
 
             try {
-                let new_buffer = await convert_audio(buffer);
-                let transcription = await transcribe_gspeech(new_buffer);
-                if (transcription != null) {
-                    bufferTranscription(mapKey, user, transcription, startTime);
+                let audio_batches = await convert_audio(buffer);
+                let fullTranscription = '';
+
+                for (let batch of audio_batches) {
+                    let transcription = await transcribe_gspeech(batch);
+                    if (transcription) {
+                        fullTranscription += (fullTranscription ? ' ' : '') + transcription;
+                    }
+                }
+
+                if (fullTranscription) {
+                    bufferTranscription(guildMap, mapKey, user, fullTranscription, startTime);
                 }
             } catch (e) {
                 logger.error('Error during transcription:', e);
@@ -331,127 +217,11 @@ function speak_impl(voice_Connection, mapKey) {
     });
 }
 
-/**
- * Buffers transcriptions for processing
- * @param {string} mapKey - The unique identifier for the guild
- * @param {Object} user - The Discord user object
- * @param {string} transcription - The transcribed text
- * @param {number} startTime - The start time of the transcription
- */
-function bufferTranscription(mapKey, user, transcription, startTime) {
-    let val = guildMap.get(mapKey);
-    if (!val.userBuffers) {
-        val.userBuffers = new Map();
-    }
-
-    if (!val.userBuffers.has(user.id)) {
-        val.userBuffers.set(user.id, []);
-    }
-
-    let userBuffer = val.userBuffers.get(user.id);
-    userBuffer.push({ transcription, startTime });
-
-    // Schedule processing if not already scheduled
-    if (!val.processingTimeout) {
-        val.processingTimeout = setTimeout(() => processBufferedTranscriptions(mapKey), BUFFER_DURATION);
-    }
-}
-
-/**
- * Processes buffered transcriptions and sends them to the Discord channel
- * @param {string} mapKey - The unique identifier for the guild
- */
-async function processBufferedTranscriptions(mapKey) {
-    let val = guildMap.get(mapKey);
-    val.processingTimeout = null;
-
-    for (let [userId, userBuffer] of val.userBuffers) {
-        if (userBuffer.length === 0) continue;
-
-        userBuffer.sort((a, b) => a.startTime - b.startTime);
-
-        let fullTranscription = '';
-        let lastProcessedIndex = -1;
-
-        for (let i = 0; i < userBuffer.length; i++) {
-            const { transcription, startTime } = userBuffer[i];
-            
-            if (i === 0 || startTime - userBuffer[i-1].startTime > SILENCE_DURATION) {
-                // Start of a new message
-                if (fullTranscription) {
-                    await sendTranscription(mapKey, userId, fullTranscription);
-                    fullTranscription = '';
-                }
-                fullTranscription = transcription;
-            } else {
-                // Continuation of the current message
-                fullTranscription += ' ' + transcription;
-            }
-            
-            lastProcessedIndex = i;
-        }
-
-        if (fullTranscription) {
-            await sendTranscription(mapKey, userId, fullTranscription);
-        }
-
-        // Remove processed items from the buffer
-        val.userBuffers.set(userId, userBuffer.slice(lastProcessedIndex + 1));
-    }
-
-    // Schedule next processing if there are still items in any buffer
-    if ([...val.userBuffers.values()].some(buffer => buffer.length > 0)) {
-        val.processingTimeout = setTimeout(() => processBufferedTranscriptions(mapKey), BUFFER_DURATION);
-    }
-}
-
-/**
- * Sends a transcription to the Discord channel
- * @param {string} mapKey - The unique identifier for the guild
- * @param {string} userId - The Discord user ID
- * @param {string} transcription - The transcribed text
- */
-async function sendTranscription(mapKey, userId, transcription) {
-    let val = guildMap.get(mapKey);
-    const user = await discordClient.users.fetch(userId);
-    const mappedName = USERNAME_MAPPING[user.username.toLowerCase()] || user.username;
-    
-    // Split the transcription into chunks of 1800 characters or less
-    const chunks = splitMessage(`${mappedName}: ${transcription}`);
-    
-    for (const chunk of chunks) {
-        val.transcriptions.push(chunk);
-        await val.text_Channel.send(chunk);
-    }
-}
-
-/**
- * Splits a message into chunks of 1800 characters or less
- * @param {string} message - The message to split
- * @returns {string[]} An array of message chunks
- */
-function splitMessage(message) {
+function splitAudioBuffer(buffer, maxChunkSize) {
     const chunks = [];
-    const maxLength = 1800; // Leave some room for Discord's overhead
-
-    while (message.length > 0) {
-        if (message.length <= maxLength) {
-            chunks.push(message);
-            break;
-        }
-
-        let chunk = message.substr(0, maxLength);
-        let splitIndex = chunk.lastIndexOf(' ');
-
-        if (splitIndex === -1) {
-            splitIndex = maxLength;
-        }
-
-        chunk = message.substr(0, splitIndex);
-        chunks.push(chunk);
-        message = message.substr(splitIndex + 1);
+    for (let i = 0; i < buffer.length; i += maxChunkSize) {
+        chunks.push(buffer.slice(i, i + maxChunkSize));
     }
-
     return chunks;
 }
 
@@ -491,39 +261,7 @@ async function saveTranscriptions(msg, mapKey) {
     }
 }
 
-/**
- * Initializes the Google Speech-to-Text client
- */
-const gspeechclient = new gspeech.SpeechClient({
-    projectId: process.env.GOOGLE_PROJECT_ID,
-    keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-});
-
-/**
- * Transcribes audio using Google Speech-to-Text API
- * @param {Buffer} buffer - The audio buffer to transcribe
- * @returns {string|null} The transcribed text, or null if transcription failed
- */
-async function transcribe_gspeech(buffer) {
-    try {
-        logger.debug('Transcribing with Google Speech-to-Text');
-        const bytes = buffer.toString('base64');
-        const audio = { content: bytes };
-        const config = {
-            encoding: 'LINEAR16',
-            sampleRateHertz: SAMPLE_RATE,
-            languageCode: 'en-US',
-        };
-        const request = { audio, config };
-
-        const [response] = await gspeechclient.recognize(request);
-        const transcription = response.results
-            .map(result => result.alternatives[0].transcript)
-            .join('\n');
-        logger.debug(`Transcription result: ${transcription}`);
-        return transcription;
-    } catch (e) {
-        logger.error('Error during Google Speech API transcription:', e);
-        return null;
-    }
-}
+module.exports = {
+    discordClient,
+    guildMap
+};
