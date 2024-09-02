@@ -1,5 +1,6 @@
 const fs = require('fs');
 const { Client, IntentsBitField, AttachmentBuilder } = require('discord.js');
+const { formatFileSystem } = require('./googleDrive');
 const { joinVoiceChannel, EndBehaviorType } = require('@discordjs/voice');
 const { OpusEncoder } = require('@discordjs/opus');
 
@@ -91,6 +92,9 @@ discordClient.on('messageCreate', async (msg) => {
             case COMMANDS.HELP:
                 await msg.reply(getHelpString());
                 break;
+            case COMMANDS.DRIVE:
+                await handleDriveCommand(msg, args);
+                break;
         }
     } catch (e) {
         logger.error('Error in messageCreate event handler:', e);
@@ -111,6 +115,7 @@ function getHelpString() {
            "*or as I like to call them, 'Elinda's Magic Words':*\n```" +
            PREFIX + "start - Unleash the Elinda! I'll start eavesdropping... I mean, transcribing.\n\n" +
            PREFIX + "stop - Send me back to my digital hammock. I need my beauty sleep, you know.\n\n" +
+           PREFIX + "drive - Browse the contents of a Google Drive folder.\n\n" +
            PREFIX + "help - You're looking at it, smartypants! Did you think this message appeared by magic?\n```" +
            "Remember, I'm just a bot. If I mess up, blame Bryan. Or sunspots. Yeah, that's more likely, let's go with sunspots.";
 }
@@ -232,6 +237,29 @@ function speak_impl(voice_Connection, mapKey) {
             }
         });
     });
+}
+
+async function handleDriveCommand(msg, args) {
+    if (args.length !== 1) {
+        await msg.reply(`Please provide a folder ID. Usage: ${COMMANDS.DRIVE} [folder_id]`);
+        return;
+    }
+    
+    const folderId = args[0];
+    try {
+        const fileSystem = await formatFileSystem(folderId);
+        if (fileSystem.length > 2000) {
+            // If the message is too long, send it as a file
+            const buffer = Buffer.from(fileSystem, 'utf8');
+            const attachment = new AttachmentBuilder(buffer, { name: 'file_system.txt' });
+            await msg.reply({ content: 'Here\'s the file system:', files: [attachment] });
+        } else {
+            await msg.reply(`Google Drive File System:\n${fileSystem}`);
+        }
+    } catch (error) {
+        logger.error('Error in handleDriveCommand:', error);
+        await msg.reply('An error occurred while fetching the file system. Please try again later.');
+    }
 }
 
 module.exports = {
