@@ -135,7 +135,7 @@ async function sendTranscription(textChannel, message) {
 }
 
 /**
- * Sends the transcription file to the Discord channel
+ * Sends the transcription file to the Discord channel and deletes it afterwards
  * @param {Object} textChannel - The Discord text channel object
  */
 async function sendTranscriptionFile(textChannel) {
@@ -143,6 +143,18 @@ async function sendTranscriptionFile(textChannel) {
         if (transcriptionFilePath && fs.existsSync(transcriptionFilePath)) {
             const attachment = new AttachmentBuilder(transcriptionFilePath);
             await textChannel.send({ content: "Here's the transcription file:", files: [attachment] });
+            
+            // Delete the file after successful sending
+            fs.unlink(transcriptionFilePath, (err) => {
+                if (err) {
+                    logger.error('Error deleting transcription file:', err);
+                } else {
+                    logger.info(`Transcription file deleted: ${transcriptionFilePath}`);
+                }
+            });
+            
+            // Reset the transcriptionFilePath
+            transcriptionFilePath = null;
         } else {
             await textChannel.send("No transcription file available.");
         }
