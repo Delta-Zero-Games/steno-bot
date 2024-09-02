@@ -1,0 +1,21 @@
+{
+    "top_folder_id": "your_top_folder_id_here",
+    "folders": [
+      {
+        "name": "Financial",
+        "id": "financial_folder_id_here"
+      },
+      {
+        "name": "Legal",
+        "id": "legal_folder_id_here"
+      },
+      {
+        "name": "Project",
+        "id": "project_folder_id_here"
+      }
+    ],
+    "ignore": [
+      "ignored_folder_id_1",
+      "ignored_folder_id_2"
+    ]
+}

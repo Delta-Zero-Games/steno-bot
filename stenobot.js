@@ -1,6 +1,6 @@
 const fs = require('fs');
 const { Client, IntentsBitField, AttachmentBuilder } = require('discord.js');
-const { formatFileSystem } = require('./googleDrive');
+const { formatFileSystem, getDriveFolderOptions } = require('./googleDrive');
 const { joinVoiceChannel, EndBehaviorType } = require('@discordjs/voice');
 const { OpusEncoder } = require('@discordjs/opus');
 
@@ -46,6 +46,9 @@ discordClient.login(DISCORD_TOK);
 
 // Map to store guild-specific data
 const guildMap = new Map();
+
+// Map to store drive command states
+const driveCommandStates = new Map();
 
 // Create necessary directories
 function necessary_dirs() {
@@ -95,6 +98,10 @@ discordClient.on('messageCreate', async (msg) => {
             case COMMANDS.DRIVE:
                 await handleDriveCommand(msg, args);
                 break;
+        }
+        // Handle drive command state responses
+        if (driveCommandStates.has(msg.author.id)) {
+            await handleDriveCommandState(msg);
         }
     } catch (e) {
         logger.error('Error in messageCreate event handler:', e);
@@ -239,26 +246,45 @@ function speak_impl(voice_Connection, mapKey) {
     });
 }
 
-async function handleDriveCommand(msg, args) {
-    if (args.length !== 1) {
-        await msg.reply(`Please provide a folder ID. Usage: ${COMMANDS.DRIVE} [folder_id]`);
-        return;
-    }
-    
-    const folderId = args[0];
-    try {
-        const fileSystem = await formatFileSystem(folderId);
+async function handleDriveCommand(msg) {
+    const options = getDriveFolderOptions();
+    let optionsMessage = "Which folder would you like to explore?:\n";
+    options.forEach((option, index) => {
+        optionsMessage += `${index + 1}. ${option.name}\n`;
+    });
+    await msg.reply(optionsMessage);
+    driveCommandStates.set(msg.author.id, { step: 'folder_selection' });
+}
+
+async function handleDriveCommandState(msg) {
+    const state = driveCommandStates.get(msg.author.id);
+    const options = getDriveFolderOptions();
+
+    if (state.step === 'folder_selection') {
+        const selection = parseInt(msg.content) - 1;
+        if (isNaN(selection) || selection < 0 || selection >= options.length) {
+            await msg.reply("Invalid selection. Please try again.");
+            return;
+        }
+        state.selectedFolder = options[selection];
+        state.step = 'content_type_selection';
+        await msg.reply("1. Folders and Files? or, 2. Just Folders?");
+    } else if (state.step === 'content_type_selection') {
+        const selection = parseInt(msg.content);
+        if (selection !== 1 && selection !== 2) {
+            await msg.reply("Invalid selection. Please enter 1 or 2.");
+            return;
+        }
+        const foldersOnly = selection === 2;
+        const fileSystem = await formatFileSystem(state.selectedFolder.id, foldersOnly);
         if (fileSystem.length > 2000) {
-            // If the message is too long, send it as a file
             const buffer = Buffer.from(fileSystem, 'utf8');
             const attachment = new AttachmentBuilder(buffer, { name: 'file_system.txt' });
             await msg.reply({ content: 'Here\'s the file system:', files: [attachment] });
         } else {
             await msg.reply(`Google Drive File System:\n${fileSystem}`);
         }
-    } catch (error) {
-        logger.error('Error in handleDriveCommand:', error);
-        await msg.reply('An error occurred while fetching the file system. Please try again later.');
+        driveCommandStates.delete(msg.author.id);
     }
 }
 
