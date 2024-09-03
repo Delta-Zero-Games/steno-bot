@@ -124,7 +124,7 @@ function getHelpString() {
            "*or as I like to call them, 'Elinda's Magic Words':*\n```" +
            PREFIX + "start - Unleash the Elinda! I'll start eavesdropping... I mean, transcribing.\n\n" +
            PREFIX + "stop - Send me back to my digital hammock. I need my beauty sleep, you know.\n\n" +
-           PREFIX + "drive - I'll help you find that 'one' document, in that 'one' folder in Google Drive.\n\n" +
+           PREFIX + "drive - I'll help you find that 'one' document, in that 'one' folder.\n\n" +
            PREFIX + "help - You're looking at it, smartypants! Did you think this message appeared by magic?\n```" +
            "Remember, I'm just a bot. If I mess up, blame Bryan. Or sunspots. Yeah, that's more likely, let's go with sunspots.";
 }
