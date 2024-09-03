@@ -16,6 +16,7 @@ module.exports = {
     COMMANDS: {
         JOIN: '!start',   // Command to make the bot join a voice channel and start transcribing
         LEAVE: '!stop',   // Command to make the bot leave the voice channel and stop transcribing
+        DRIVE: '!drive',  // Command to list files in a Google Drive folder
         HELP: '!help'     // Command to display help information about the bot
     },
 

@@ -4,6 +4,10 @@
 # Google Cloud credentials
 stenobot-ddc1faf50f0c.json
 
+# Mapping Files
+username_mapping.json
+drive_structure.json
+
 # Node modules
 node_modules/
 
