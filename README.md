@@ -16,10 +16,11 @@
    - [Audio Sounds](#audio-sounds)
    - [Username Mapping](#username-mapping)
 6. [Google Speech-to-Text Setup](#google-speech-to-text-setup)
-7. [Constants and Environment Variables](#constants-and-environment-variables)
-8. [Future Additions](#future-additions)
-9. [Troubleshooting](#troubleshooting)
-10. [License](#license)
+7. [Google Drive Integration Setup](#google-drive-integration-setup)
+8. [Constants and Environment Variables](#constants-and-environment-variables)
+9. [Future Additions](#future-additions)
+10. [Troubleshooting](#troubleshooting)
+11. [License](#license)
 
 ## Introduction
 
