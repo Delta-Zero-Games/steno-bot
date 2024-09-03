@@ -23,7 +23,7 @@
 
 ## Introduction
 
-This Discord bot is designed to join voice channels, transcribe conversations using Google's Speech-to-Text API, and provide text output in a designated text channel. It features custom join/leave sounds, username mapping, and configurable logging levels.
+This Discord bot is designed to join voice channels, transcribe conversations using Google's Speech-to-Text API, and provide text output in a designated text channel. It features custom join/leave sounds, username mapping, and configurable logging levels. Separately, it also includes Google Drive integration for file browsing.
 
 ## Features
 
@@ -35,6 +35,7 @@ This Discord bot is designed to join voice channels, transcribe conversations us
 - Transcription saving to text files
 - Buffer system for improved transcription accuracy
 - Support for multiple guilds simultaneously
+- Google Drive integration for file and folder browsing
 
 ## Setup
 
@@ -44,6 +45,7 @@ This Discord bot is designed to join voice channels, transcribe conversations us
 - npm (Node Package Manager)
 - A Discord Bot Token
 - Google Cloud account with Speech-to-Text API enabled
+- Google Cloud account with Drive API enabled
 
 ### Installation
 
@@ -90,16 +92,13 @@ The bot supports four log levels, providing different amounts of information:
 - `info`: Logs general information, warnings, and errors (default).
 - `debug`: Logs everything, including detailed debug information.
 
-Set the log level in the `.env` file or as an environment variable when starting the bot:
-
-```
-LOG_LEVEL=debug node stenobot.js
-```
+Set the log level in the `.env` file.
 
 ### Bot Commands
 
 - `!start`: Start the bot and join the user's current voice channel
 - `!stop`: Stop the bot and leave the voice channel
+- `!drive`: Browse files and folders in the configured Google Drive
 - `!help`: Display help information
 
 ## Customization
@@ -136,6 +135,44 @@ To update the username mapping:
 
 For detailed instructions, visit the [Google Cloud Speech-to-Text documentation](https://cloud.google.com/speech-to-text/docs/quickstart-client-libraries).
 
+## Google Drive Integration Setup
+
+1. Enable the Google Drive API in your Google Cloud project.
+2. Ensure the service account has the necessary permissions to access the desired Google Drive folders.
+3. Create a `drive_structure.json` file in the project root with the following structure:
+
+```json
+{
+  "top_folder_id": "your_top_level_folder_id",
+  "folders": [
+    {
+      "name": "Folder Name 1",
+      "id": "folder_id_1"
+    },
+    {
+      "name": "Folder Name 2",
+      "id": "folder_id_2"
+    }
+  ],
+  "ignore": ["id_to_ignore_1", "id_to_ignore_2"]
+}
+```
+
+4. Replace the `top_folder_id` with the ID of your top-level Google Drive folder.
+5. Add the folders you want to make accessible in the `folders` array, providing a name and ID for each.
+6. List any folder or file IDs you want to exclude in the `ignore` array.
+
+To give the bot access to your Google Drive folders and files:
+
+1. Go to the Google Drive web interface.
+2. Right-click on the folder you want to share.
+3. Click "Share".
+4. In the "People" field, enter the email address of your service account (found in your Google Cloud credentials JSON file).
+5. Choose the appropriate permission level (usually "Viewer" is sufficient).
+6. Click "Send" to grant access.
+
+Repeat this process for any additional folders you want the bot to access.
+
 ## Constants and Environment Variables
 
 - `LOG_LEVEL`: Sets the verbosity of logging.
@@ -165,6 +202,7 @@ These can be adjusted in the `config.js` file if needed.
 - Ensure all required dependencies are installed.
 - Verify that audio files are in the correct format and location.
 - Set `LOG_LEVEL` to 'debug' for more detailed output.
+- For Google Drive issues, check that the service account has the necessary permissions and that the `drive_structure.json` file is correctly configured.
 
 For further assistance, please open an issue on the GitHub repository.
 

@@ -44,13 +44,14 @@ async function getFolderContents(folderId, foldersOnly = false) {
     let output = '';
   
     for (const item of contents) {
+      const formattedLink = item.webViewLink ? `[${item.name}](<${item.webViewLink}>)` : item.name;
       if (item.mimeType === 'application/vnd.google-apps.folder') {
-        output += `${indent}📁 [${item.name}](${item.webViewLink})\n`;
-        if (!foldersOnly) {
-          output += await formatFileSystem(item.id, foldersOnly, indent + '  ');
-        }
+        output += `${indent}📁 ${formattedLink}\n`;
+        // Recursively get contents of subfolders
+        const subfolderContents = await formatFileSystem(item.id, foldersOnly, indent + '  ');
+        output += subfolderContents;
       } else if (!foldersOnly) {
-        output += `${indent}📄 [${item.name}](${item.webViewLink})\n`;
+        output += `${indent}📄 ${formattedLink}\n`;
       }
     }
   

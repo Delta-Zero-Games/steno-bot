@@ -11,7 +11,8 @@ const {
     PREFIX, 
     COMMANDS, 
     SAMPLE_RATE, 
-    SILENCE_DURATION
+    SILENCE_DURATION,
+    DISCORD_CHAR_LIMIT
 } = require('./config');
 const logger = require('./logger');
 const { 
@@ -96,12 +97,13 @@ discordClient.on('messageCreate', async (msg) => {
                 await msg.reply(getHelpString());
                 break;
             case COMMANDS.DRIVE:
-                await handleDriveCommand(msg, args);
+                await handleDriveCommand(msg);
                 break;
         }
         // Handle drive command state responses
         if (driveCommandStates.has(msg.author.id)) {
             await handleDriveCommandState(msg);
+            return;
         }
     } catch (e) {
         logger.error('Error in messageCreate event handler:', e);
@@ -122,7 +124,7 @@ function getHelpString() {
            "*or as I like to call them, 'Elinda's Magic Words':*\n```" +
            PREFIX + "start - Unleash the Elinda! I'll start eavesdropping... I mean, transcribing.\n\n" +
            PREFIX + "stop - Send me back to my digital hammock. I need my beauty sleep, you know.\n\n" +
-           PREFIX + "drive - Browse the contents of a Google Drive folder.\n\n" +
+           PREFIX + "drive - I'll help you find that 'one' document, in that 'one' folder in Google Drive.\n\n" +
            PREFIX + "help - You're looking at it, smartypants! Did you think this message appeared by magic?\n```" +
            "Remember, I'm just a bot. If I mess up, blame Bryan. Or sunspots. Yeah, that's more likely, let's go with sunspots.";
 }
@@ -256,6 +258,26 @@ async function handleDriveCommand(msg) {
     driveCommandStates.set(msg.author.id, { step: 'folder_selection' });
 }
 
+function splitMessage(message, maxLength) {
+    const lines = message.split('\n');
+    const parts = [];
+    let currentPart = '';
+
+    for (const line of lines) {
+        if (currentPart.length + line.length + 1 > maxLength) {
+            parts.push(currentPart.trim());
+            currentPart = '';
+        }
+        currentPart += line + '\n';
+    }
+
+    if (currentPart.trim()) {
+        parts.push(currentPart.trim());
+    }
+
+    return parts;
+}
+
 async function handleDriveCommandState(msg) {
     const state = driveCommandStates.get(msg.author.id);
     const options = getDriveFolderOptions();
@@ -263,7 +285,7 @@ async function handleDriveCommandState(msg) {
     if (state.step === 'folder_selection') {
         const selection = parseInt(msg.content) - 1;
         if (isNaN(selection) || selection < 0 || selection >= options.length) {
-            await msg.reply("Invalid selection. Please try again.");
+            // Instead of replying with an error, just ignore invalid inputs
             return;
         }
         state.selectedFolder = options[selection];
@@ -277,13 +299,21 @@ async function handleDriveCommandState(msg) {
         }
         const foldersOnly = selection === 2;
         const fileSystem = await formatFileSystem(state.selectedFolder.id, foldersOnly);
-        if (fileSystem.length > 2000) {
-            const buffer = Buffer.from(fileSystem, 'utf8');
-            const attachment = new AttachmentBuilder(buffer, { name: 'file_system.txt' });
-            await msg.reply({ content: 'Here\'s the file system:', files: [attachment] });
+        
+        if (fileSystem.length > DISCORD_CHAR_LIMIT) {
+            const parts = splitMessage(fileSystem, DISCORD_CHAR_LIMIT);
+            await msg.reply(`Google Drive File System (${parts.length} parts):`);
+            for (let i = 0; i < parts.length; i++) {
+                try {
+                    await msg.channel.send(`Part ${i + 1}/${parts.length}:\n${parts[i]}`);
+                } catch (error) {
+                    logger.error(`Error sending part ${i + 1} of the file system:`, error);
+                }
+            }
         } else {
             await msg.reply(`Google Drive File System:\n${fileSystem}`);
         }
+        
         driveCommandStates.delete(msg.author.id);
     }
 }
